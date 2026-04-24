@@ -1,14 +1,15 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.contrib import messages
+from django.db.models import Q
 from .models import *
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 from datetime import datetime, date
 import json
 from .optimizer import DeliveryOptimizer, PriceCalculator
 from .strategies import OrderContext, StandardPricing, LoyaltyPricing, StandardDelivery, PickupStrategy
 from .singletons import ConfigManager, EventBus, CacheManager
-from django.db.models import Q
 
 def index(request):
     ingredients = Ingredient.objects.all()
@@ -144,7 +145,7 @@ def cart_view(request):
             'total': item_total
         })
     
-    delivery_fee = 0  
+    delivery_fee = 200 if total < 500 else 0
     grand_total = total + delivery_fee
     
     context = {
@@ -247,10 +248,9 @@ def create_order(request):
         if delivery_type == 'pickup':
             address = 'Самовывоз'
         
-        config = ConfigManager()
-        
         client = Client.objects.get(client_id=request.session['user_id'])
         
+        # Программа лояльности
         loyalty_discount = 0.0
         if client.registration_date:
             years = (timezone.now().date() - client.registration_date.date()).days // 365
@@ -258,20 +258,16 @@ def create_order(request):
                 loyalty_discount = 0.05
             elif years >= 1:
                 loyalty_discount = 0.03
-        discounted_total = total * (1 - loyalty_discount)
         
+        # Базовая стоимость доставки
         if delivery_type == 'delivery':
-            delivery_strategy = StandardDelivery()
+            delivery_fee = 200 if total < 500 else 0
         else:
-            delivery_strategy = PickupStrategy()
+            delivery_fee = 0
         
-        pricing_strategy = StandardPricing()
-        order_context = OrderContext(pricing_strategy, delivery_strategy)
-        
-        distance_km = 5 
-        final_total = order_context.calculate_total(
-            discounted_total, 0, 1, distance_km, discounted_total
-        )
+        # Итоговая сумма с учётом скидки лояльности и доставки
+        final_total = (total * (1 - loyalty_discount)) + delivery_fee
+        final_total = round(final_total, 2)
         
         order = Order.objects.create(
             client_id=request.session['user_id'],
@@ -280,6 +276,7 @@ def create_order(request):
             address=address
         )
         
+        # Назначение курьера для доставки
         if delivery_type == 'delivery':
             free_courier = Courier.objects.filter(status='Свободен').first()
             if free_courier:
@@ -296,6 +293,7 @@ def create_order(request):
         messages.success(request, f'Заказ #{order.order_id} успешно создан')
         return redirect('my_orders')
     
+    # GET-запрос: показываем форму оформления
     delivery_fee = 200 if total < 500 else 0
     grand_total = total + delivery_fee
     cart_items = []
@@ -326,7 +324,6 @@ def my_orders(request):
 
 def admin_dashboard(request):
     if request.session.get('role') != 'admin':
-        request.session.flush() 
         return redirect('admin_login')
     orders = Order.objects.all().order_by('-created_at')
     ingredients = Ingredient.objects.all()
@@ -346,7 +343,6 @@ def admin_dashboard(request):
 
 def kitchen(request):
     if request.session.get('role') != 'admin':
-        request.session.flush() 
         return redirect('admin_login')
     orders = Order.objects.all().order_by('created_at')
     return render(request, 'kitchen.html', {'orders': orders})
@@ -396,7 +392,6 @@ def update_status(request, order_id):
 
 def courier_view(request):
     if request.session.get('role') != 'admin':
-        request.session.flush() 
         return redirect('admin_login')
     couriers = Courier.objects.all()
     return render(request, 'courier.html', {'couriers': couriers})
@@ -423,7 +418,12 @@ def init_data(request):
         Courier.objects.create(name="Сергей Смирнов", phone="89163456789", status="Свободен")
 
         if not Admin.objects.exists():
-            admin = Admin.objects.create(username="admin", password=make_password("admin"))
+            Admin.objects.create(
+                username="admin",
+                password=make_password("admin"),
+                email="admin@pizzaflow.com",
+                permissions="full"
+            )
 
         if not Pizza.objects.exists():
             Pizza.objects.create(
@@ -466,7 +466,6 @@ def pizza_menu(request):
 
 def optimize_route_api(request):
     if request.method == 'GET':
-        # Берем заказы, которые реально нужно везти
         pending_orders = Order.objects.filter(
             status__in=['В печи', 'Передан курьеру'], 
             delivery_type='delivery'
@@ -475,15 +474,12 @@ def optimize_route_api(request):
         if not pending_orders:
             return JsonResponse({'route': [], 'distance': 0, 'message': 'Нет заказов для доставки'})
         
-        restaurant_coords = (55.751244, 37.618423) # Москва, центр
+        restaurant_coords = (55.751244, 37.618423)
         deliveries = []
         
-        # Имитируем разные координаты для заказов, чтобы алгоритм имел смысл
-        # В реальной базе они должны быть в модели Order
         for i, order in enumerate(pending_orders):
             deliveries.append({
                 'order_id': order.order_id,
-                # Смещаем на ~1-2 км каждый заказ для теста
                 'lat': 55.751244 + (i * 0.01), 
                 'lng': 37.618423 + (i * 0.01),
                 'address': order.address
@@ -613,7 +609,7 @@ def assign_courier_to_order(request, courier_id):
                 courier.status = 'В пути'
                 courier.save()
                 
-                OrderStatusHistory.objects.create(order=order, status='Передан курьеру', note=f'Курьер: {courier.name}')
+                OrderStatusHistory.objects.create(order=order, status='Передан курьеру')
                 
                 return JsonResponse({'success': True, 'message': f'Курьер {courier.name} назначен на заказ #{order_id}'})
             else:
