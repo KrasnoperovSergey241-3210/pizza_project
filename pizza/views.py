@@ -243,52 +243,15 @@ def create_order(request):
     
     if request.method == 'POST':
         delivery_type = request.POST.get('delivery_type')
-        address = request.POST.get('address', '')
         
-        if delivery_type == 'pickup':
-            address = 'Самовывоз'
+        from .order_processor import DeliveryOrderProcessor, PickupOrderProcessor
         
-        client = Client.objects.get(client_id=request.session['user_id'])
-        
-        # Программа лояльности
-        loyalty_discount = 0.0
-        if client.registration_date:
-            years = (timezone.now().date() - client.registration_date.date()).days // 365
-            if years >= 2:
-                loyalty_discount = 0.05
-            elif years >= 1:
-                loyalty_discount = 0.03
-        
-        # Базовая стоимость доставки
         if delivery_type == 'delivery':
-            delivery_fee = 200 if total < 500 else 0
+            processor = DeliveryOrderProcessor()
         else:
-            delivery_fee = 0
+            processor = PickupOrderProcessor()
         
-        # Итоговая сумма с учётом скидки лояльности и доставки
-        final_total = (total * (1 - loyalty_discount)) + delivery_fee
-        final_total = round(final_total, 2)
-        
-        order = Order.objects.create(
-            client_id=request.session['user_id'],
-            delivery_type=delivery_type,
-            amount=final_total,
-            address=address
-        )
-        
-        # Назначение курьера для доставки
-        if delivery_type == 'delivery':
-            free_courier = Courier.objects.filter(status='Свободен').first()
-            if free_courier:
-                order.courier = free_courier
-                free_courier.status = 'В пути'
-                free_courier.save()
-                order.save()
-        
-        request.session['cart'] = {}
-        
-        event_bus = EventBus()
-        event_bus.publish('order_created', {'order_id': order.order_id, 'client_id': client.client_id})
+        order = processor.process(request, cart, total)
         
         messages.success(request, f'Заказ #{order.order_id} успешно создан')
         return redirect('my_orders')
