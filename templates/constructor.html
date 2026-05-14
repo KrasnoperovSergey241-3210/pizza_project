@@ -1,10 +1,9 @@
-<!-- templates/constructor.html -->
 {% extends 'base.html' %}
 
 {% block content %}
 <style>
     .constructor-container {
-        max-width: 800px;
+        max-width: 1200px;
         margin: 0 auto;
     }
     
@@ -24,6 +23,123 @@
         font-size: 1.1rem;
     }
     
+    .two-columns {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .constructor-form {
+        flex: 2;
+        min-width: 300px;
+    }
+    
+    .patterns-preview {
+        flex: 1;
+        min-width: 280px;
+    }
+    
+    .pattern-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid #d32f2f;
+    }
+    
+    .pattern-card h3 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 1rem;
+        color: #d32f2f;
+        font-size: 1.2rem;
+    }
+    
+    .factory-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .factory-btn {
+        background: #d32f2f;
+        color: white !important;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .factory-btn:hover {
+        background: #b71c1c;
+        transform: translateY(-2px);
+    }
+    
+    .factory-btn.active {
+        background: #ff5722;
+        box-shadow: 0 2px 8px rgba(211, 47, 47, 0.4);
+    }
+    
+    .preview-pizza {
+        background: #fff3e0;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .preview-pizza h4 {
+        margin-bottom: 0.5rem;
+        color: #e65100;
+    }
+    
+    .preview-description {
+        font-size: 0.85rem;
+        color: #666;
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+    
+    .preview-price {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #d32f2f;
+        margin-top: 0.5rem;
+    }
+    
+    .decorator-demo {
+        background: #e8f5e9;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .decorator-demo h4 {
+        color: #2e7d32;
+    }
+    
+    .decorator-steps {
+        font-family: monospace;
+        font-size: 0.85rem;
+        background: #f5f5f5;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        word-break: break-word;
+    }
+    
+    .disabled-option {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+    
     .ingredient-section {
         background: white;
         border-radius: 16px;
@@ -31,6 +147,12 @@
         margin-bottom: 1.5rem;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         border-left: 4px solid #d32f2f;
+        transition: all 0.3s;
+    }
+    
+    .ingredient-section.disabled {
+        opacity: 0.6;
+        background: #f5f5f5;
     }
     
     .ingredient-section h3 {
@@ -75,6 +197,11 @@
         width: 18px;
         height: 18px;
         accent-color: #d32f2f;
+    }
+    
+    .ingredient-option.disabled {
+        opacity: 0.5;
+        pointer-events: none;
     }
     
     .ingredient-option label {
@@ -166,6 +293,17 @@
         font-weight: bold;
     }
     
+    .reset-factory-btn {
+        background: #ff9800;
+        color: white;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+    }
+    
     @media (max-width: 768px) {
         .ingredient-grid {
             grid-template-columns: 1fr;
@@ -178,6 +316,10 @@
         .price-preview span:last-child {
             font-size: 1.4rem;
         }
+        
+        .two-columns {
+            flex-direction: column;
+        }
     }
 </style>
 
@@ -187,95 +329,155 @@
         <p>Выберите основу, соус, сыр и добавьте любимые топпинги</p>
     </div>
     
-    <form method="POST" id="constructorForm">
-        {% csrf_token %}
+    <div class="two-columns">
+        <div class="constructor-form">
+            <form method="POST" id="constructorForm">
+                {% csrf_token %}
+                
+                <div class="ingredient-section" id="baseSection">
+                    <h3>🥖 Выберите основу</h3>
+                    <div class="ingredient-grid">
+                        {% for ingredient in ingredients %}
+                            {% if ingredient.category == 'base' %}
+                                <div class="ingredient-option" data-category="base" data-price="{{ ingredient.price }}" data-name="{{ ingredient.ingredient_name }}" onclick="selectIngredient(this, 'base')">
+                                    <input type="radio" name="base" value="{{ ingredient.ingredient_id }}" required id="base_{{ ingredient.ingredient_id }}">
+                                    <label for="base_{{ ingredient.ingredient_id }}">
+                                        <span>{{ ingredient.ingredient_name }}</span>
+                                        <span class="ingredient-price">{{ ingredient.price }} ₽</span>
+                                    </label>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="ingredient-section" id="sauceSection">
+                    <h3>🥫 Выберите соус</h3>
+                    <div class="ingredient-grid">
+                        {% for ingredient in ingredients %}
+                            {% if ingredient.category == 'sauce' %}
+                                <div class="ingredient-option" data-category="sauce" data-price="{{ ingredient.price }}" data-name="{{ ingredient.ingredient_name }}" onclick="selectIngredient(this, 'sauce')">
+                                    <input type="radio" name="sauce" value="{{ ingredient.ingredient_id }}" required id="sauce_{{ ingredient.ingredient_id }}">
+                                    <label for="sauce_{{ ingredient.ingredient_id }}">
+                                        <span>{{ ingredient.ingredient_name }}</span>
+                                        <span class="ingredient-price">{{ ingredient.price }} ₽</span>
+                                    </label>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="ingredient-section" id="cheeseSection">
+                    <h3>🧀 Выберите сыр</h3>
+                    <div class="ingredient-grid">
+                        {% for ingredient in ingredients %}
+                            {% if ingredient.category == 'cheese' %}
+                                <div class="ingredient-option" data-category="cheese" data-price="{{ ingredient.price }}" data-name="{{ ingredient.ingredient_name }}" onclick="selectIngredient(this, 'cheese')">
+                                    <input type="radio" name="cheese" value="{{ ingredient.ingredient_id }}" required id="cheese_{{ ingredient.ingredient_id }}">
+                                    <label for="cheese_{{ ingredient.ingredient_id }}">
+                                        <span>{{ ingredient.ingredient_name }}</span>
+                                        <span class="ingredient-price">{{ ingredient.price }} ₽</span>
+                                    </label>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="ingredient-section" id="toppingsSection">
+                    <h3>🍕 Добавьте топпинги (до 8)</h3>
+                    <div class="ingredient-grid">
+                        {% for ingredient in ingredients %}
+                            {% if ingredient.category == 'topping' %}
+                                <div class="ingredient-option" data-category="topping" data-price="{{ ingredient.price }}" data-name="{{ ingredient.ingredient_name }}" onclick="toggleTopping(this)">
+                                    <input type="checkbox" name="toppings" value="{{ ingredient.ingredient_id }}" id="topping_{{ ingredient.ingredient_id }}">
+                                    <label for="topping_{{ ingredient.ingredient_id }}">
+                                        <span>{{ ingredient.ingredient_name }}</span>
+                                        <span class="ingredient-price">{{ ingredient.price }} ₽</span>
+                                    </label>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="toppings-limit">
+                        Выбрано топпингов: <span class="toppings-count" id="toppingsCount">0</span> / 8
+                    </div>
+                </div>
+                
+                <div class="favorite-checkbox">
+                    <input type="checkbox" name="save_favorite" id="save_favorite">
+                    <label for="save_favorite">⭐ Сохранить эту пиццу в избранное</label>
+                </div>
+                
+                <div class="price-preview">
+                    <span>💵 Стоимость пиццы:</span>
+                    <span id="totalPrice">0</span>
+                    <span>₽</span>
+                </div>
+                
+                <button type="submit" class="submit-btn">
+                    🛒 Добавить в корзину
+                </button>
+            </form>
+        </div>
         
-        <div class="ingredient-section">
-            <h3>Выберите основу</h3>
-            <div class="ingredient-grid">
-                {% for ingredient in ingredients %}
-                    {% if ingredient.category == 'base' %}
-                        <div class="ingredient-option" onclick="selectIngredient(this, 'base')">
-                            <input type="radio" name="base" value="{{ ingredient.ingredient_id }}" required id="base_{{ ingredient.ingredient_id }}">
-                            <label for="base_{{ ingredient.ingredient_id }}">
-                                <span>{{ ingredient.ingredient_name }}</span>
-                                <span class="ingredient-price">{{ ingredient.price }} ₽</span>
-                            </label>
-                        </div>
-                    {% endif %}
-                {% endfor %}
+        <div class="patterns-preview">
+            <div class="pattern-card">
+                <h3>🏭 Базовые наборы</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.75rem;">Выберите готовый набор ингредиентов:</p>
+                <div class="factory-buttons">
+                    <button type="button" class="factory-btn" data-factory="classic">🍅 Классическая</button>
+                    <button type="button" class="factory-btn" data-factory="meat">🥩 Мясная</button>
+                    <button type="button" class="factory-btn" data-factory="cheese">🧀 Сырная</button>
+                    <button type="button" class="factory-btn" data-factory="veggie">🥬 Вегетарианская</button>
+                </div>
+                {% if factory_preview %}
+                <div class="preview-pizza" id="factoryPreview">
+                    <h4 id="previewName">{{ factory_preview.style }}</h4>
+                    <div class="preview-description" id="previewDesc">
+                        {{ factory_preview.description }}
+                    </div>
+                    <p><strong>Основа:</strong> <span id="previewBase">{{ factory_preview.base }}</span></p>
+                    <p><strong>Соус:</strong> <span id="previewSauce">{{ factory_preview.sauce }}</span></p>
+                    <p><strong>Сыр:</strong> <span id="previewCheese">{{ factory_preview.cheese }}</span></p>
+                    <p><strong>Топпинги:</strong> <span id="previewToppings">-</span></p>
+                    <div class="preview-price" id="previewPrice">{{ factory_preview.price }} ₽</div>
+                    <button type="button" class="reset-factory-btn" onclick="resetFactorySelection()">Сбросить</button>
+                </div>
+                {% else %}
+                <div class="preview-pizza" id="factoryPreview" style="display: none;">
+                    <h4 id="previewName"></h4>
+                    <div class="preview-description" id="previewDesc"></div>
+                    <p><strong>Основа:</strong> <span id="previewBase"></span></p>
+                    <p><strong>Соус:</strong> <span id="previewSauce"></span></p>
+                    <p><strong>Сыр:</strong> <span id="previewCheese"></span></p>
+                    <p><strong>Топпинги:</strong> <span id="previewToppings">-</span></p>
+                    <div class="preview-price" id="previewPrice"></div>
+                    <button type="button" class="reset-factory-btn" onclick="resetFactorySelection()">Сбросить</button>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="pattern-card">
+                <h3>🎨 Состав пиццы</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.75rem;">Каждый топпинг добавляется к пицце:</p>
+                <div class="decorator-demo">
+                    <h4>📦 Базовая пицца</h4>
+                    <div class="decorator-steps" id="decoratorDemo">
+                        Основа + Соус + Сыр
+                    </div>
+                    <h4>➕ Добавление топпингов</h4>
+                    <div class="decorator-steps" id="decoratorToppings">
+                        Нет топпингов
+                    </div>
+                    <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+                        💡 Выберите топпинги выше
+                    </p>
+                </div>
             </div>
         </div>
-        
-        <div class="ingredient-section">
-            <h3>Выберите соус</h3>
-            <div class="ingredient-grid">
-                {% for ingredient in ingredients %}
-                    {% if ingredient.category == 'sauce' %}
-                        <div class="ingredient-option" onclick="selectIngredient(this, 'sauce')">
-                            <input type="radio" name="sauce" value="{{ ingredient.ingredient_id }}" required id="sauce_{{ ingredient.ingredient_id }}">
-                            <label for="sauce_{{ ingredient.ingredient_id }}">
-                                <span>{{ ingredient.ingredient_name }}</span>
-                                <span class="ingredient-price">{{ ingredient.price }} ₽</span>
-                            </label>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-        
-        <div class="ingredient-section">
-            <h3>Выберите сыр</h3>
-            <div class="ingredient-grid">
-                {% for ingredient in ingredients %}
-                    {% if ingredient.category == 'cheese' %}
-                        <div class="ingredient-option" onclick="selectIngredient(this, 'cheese')">
-                            <input type="radio" name="cheese" value="{{ ingredient.ingredient_id }}" required id="cheese_{{ ingredient.ingredient_id }}">
-                            <label for="cheese_{{ ingredient.ingredient_id }}">
-                                <span>{{ ingredient.ingredient_name }}</span>
-                                <span class="ingredient-price">{{ ingredient.price }} ₽</span>
-                            </label>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-        
-        <div class="ingredient-section">
-            <h3>Добавьте топпинги (до 8)</h3>
-            <div class="ingredient-grid">
-                {% for ingredient in ingredients %}
-                    {% if ingredient.category == 'topping' %}
-                        <div class="ingredient-option" onclick="toggleTopping(this)">
-                            <input type="checkbox" name="toppings" value="{{ ingredient.ingredient_id }}" id="topping_{{ ingredient.ingredient_id }}">
-                            <label for="topping_{{ ingredient.ingredient_id }}">
-                                <span>{{ ingredient.ingredient_name }}</span>
-                                <span class="ingredient-price">{{ ingredient.price }} ₽</span>
-                            </label>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            <div class="toppings-limit">
-                Выбрано топпингов: <span class="toppings-count" id="toppingsCount">0</span> / 8
-            </div>
-        </div>
-        
-        <div class="favorite-checkbox">
-            <input type="checkbox" name="save_favorite" id="save_favorite">
-            <label for="save_favorite">Сохранить эту пиццу в избранное</label>
-        </div>
-        
-        <div class="price-preview">
-            <span>Стоимость пиццы:</span>
-            <span id="totalPrice">0</span>
-            <span>₽</span>
-        </div>
-        
-        <button type="submit" class="submit-btn">
-            Добавить в корзину
-        </button>
-    </form>
+    </div>
 </div>
 
 <script>
@@ -283,8 +485,18 @@
     let selectedSauce = null;
     let selectedCheese = null;
     let selectedToppings = new Set();
+    let activeFactory = null;
+    let factoryBaseName = null;
+    let factorySauceName = null;
+    let factoryCheeseName = null;
+    let factoryStyleName = null;
     
     function selectIngredient(element, type) {
+        if (activeFactory) {
+            alert('Сначала сбросьте выбранный базовый набор (кнопка "Сбросить")');
+            return;
+        }
+        
         const radio = element.querySelector('input[type="radio"]');
         if (radio) {
             radio.checked = true;
@@ -296,6 +508,7 @@
         element.classList.add('selected');
         
         updateTotalPrice();
+        updateDecoratorDemo();
     }
     
     function toggleTopping(element) {
@@ -319,6 +532,8 @@
         
         document.getElementById('toppingsCount').textContent = selectedToppings.size;
         updateTotalPrice();
+        updateDecoratorDemo();
+        updateFactoryPreviewWithToppings();
     }
     
     function updateTotalPrice() {
@@ -360,10 +575,224 @@
         });
         
         document.getElementById('totalPrice').textContent = total;
+        
+        if (activeFactory && factoryStyleName) {
+            const toppingsTotal = Array.from(document.querySelectorAll('input[name="toppings"]:checked')).reduce((sum, cb) => {
+                const div = cb.closest('.ingredient-option');
+                const price = parseInt(div.querySelector('.ingredient-price')?.textContent || 0);
+                return sum + price;
+            }, 0);
+            document.getElementById('previewPrice').textContent = (parseInt(factoryBasePrice) + toppingsTotal) + ' ₽';
+        }
+    }
+    
+    function updateDecoratorDemo() {
+        let baseName = '?';
+        let sauceName = '?';
+        let cheeseName = '?';
+        
+        const baseRadio = document.querySelector('input[name="base"]:checked');
+        if (baseRadio) {
+            const label = baseRadio.closest('.ingredient-option').querySelector('label span:first-child').textContent;
+            baseName = label;
+        }
+        
+        const sauceRadio = document.querySelector('input[name="sauce"]:checked');
+        if (sauceRadio) {
+            const label = sauceRadio.closest('.ingredient-option').querySelector('label span:first-child').textContent;
+            sauceName = label;
+        }
+        
+        const cheeseRadio = document.querySelector('input[name="cheese"]:checked');
+        if (cheeseRadio) {
+            const label = cheeseRadio.closest('.ingredient-option').querySelector('label span:first-child').textContent;
+            cheeseName = label;
+        }
+        
+        document.getElementById('decoratorDemo').innerHTML = `${baseName} + ${sauceName} + ${cheeseName}`;
+        
+        let toppingsList = [];
+        document.querySelectorAll('input[name="toppings"]:checked').forEach(checkbox => {
+            const label = checkbox.closest('.ingredient-option').querySelector('label span:first-child').textContent;
+            toppingsList.push(label);
+        });
+        
+        if (toppingsList.length > 0) {
+            document.getElementById('decoratorToppings').innerHTML = toppingsList.map(t => `+ ${t}`).join(' → ');
+        } else {
+            document.getElementById('decoratorToppings').innerHTML = 'Нет топпингов';
+        }
+    }
+    
+    function updateFactoryPreviewWithToppings() {
+        if (!activeFactory) return;
+        
+        let toppingsList = [];
+        document.querySelectorAll('input[name="toppings"]:checked').forEach(checkbox => {
+            const label = checkbox.closest('.ingredient-option').querySelector('label span:first-child').textContent;
+            toppingsList.push(label);
+        });
+        
+        let displayName = factoryStyleName;
+        if (toppingsList.length > 0) {
+            displayName = `${factoryStyleName} + ${toppingsList.join(' + ')}`;
+        }
+        
+        document.getElementById('previewName').textContent = displayName;
+        document.getElementById('previewToppings').textContent = toppingsList.length > 0 ? toppingsList.join(', ') : '-';
+        
+        let toppingsTotal = 0;
+        document.querySelectorAll('input[name="toppings"]:checked').forEach(checkbox => {
+            const div = checkbox.closest('.ingredient-option');
+            const price = parseInt(div.querySelector('.ingredient-price')?.textContent || 0);
+            toppingsTotal += price;
+        });
+        
+        document.getElementById('previewPrice').textContent = (parseInt(factoryBasePrice) + toppingsTotal) + ' ₽';
+    }
+    
+    let factoryBasePrice = 0;
+    
+    document.querySelectorAll('.factory-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (activeFactory === this.dataset.factory) {
+                resetFactorySelection();
+                return;
+            }
+            
+            const factory = this.dataset.factory;
+            
+            document.querySelectorAll('.factory-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            fetch(`/constructor/?preview_factory=${factory}`)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const previewDiv = doc.querySelector('#factoryPreview');
+                    
+                    if (previewDiv) {
+                        const newName = previewDiv.querySelector('#previewName')?.textContent || '';
+                        const newBase = previewDiv.querySelector('#previewBase')?.textContent || '';
+                        const newSauce = previewDiv.querySelector('#previewSauce')?.textContent || '';
+                        const newCheese = previewDiv.querySelector('#previewCheese')?.textContent || '';
+                        const newPrice = previewDiv.querySelector('#previewPrice')?.textContent || '0';
+                        
+                        document.getElementById('previewName').textContent = newName;
+                        document.getElementById('previewDesc').textContent = `${newBase} + ${newSauce} + ${newCheese}`;
+                        document.getElementById('previewBase').textContent = newBase;
+                        document.getElementById('previewSauce').textContent = newSauce;
+                        document.getElementById('previewCheese').textContent = newCheese;
+                        document.getElementById('previewPrice').textContent = newPrice;
+                        document.getElementById('factoryPreview').style.display = 'block';
+                        
+                        factoryBasePrice = parseInt(newPrice);
+                        factoryStyleName = newName;
+                        factoryBaseName = newBase;
+                        factorySauceName = newSauce;
+                        factoryCheeseName = newCheese;
+                        activeFactory = factory;
+                        
+                        const baseOptions = document.querySelectorAll('.ingredient-option[data-category="base"]');
+                        const sauceOptions = document.querySelectorAll('.ingredient-option[data-category="sauce"]');
+                        const cheeseOptions = document.querySelectorAll('.ingredient-option[data-category="cheese"]');
+                        
+                        baseOptions.forEach(opt => opt.classList.add('disabled'));
+                        sauceOptions.forEach(opt => opt.classList.add('disabled'));
+                        cheeseOptions.forEach(opt => opt.classList.add('disabled'));
+                        
+                        document.getElementById('baseSection').classList.add('disabled');
+                        document.getElementById('sauceSection').classList.add('disabled');
+                        document.getElementById('cheeseSection').classList.add('disabled');
+                        
+                        const targetBase = Array.from(baseOptions).find(opt => 
+                            opt.querySelector('label span:first-child')?.textContent === newBase
+                        );
+                        const targetSauce = Array.from(sauceOptions).find(opt => 
+                            opt.querySelector('label span:first-child')?.textContent === newSauce
+                        );
+                        const targetCheese = Array.from(cheeseOptions).find(opt => 
+                            opt.querySelector('label span:first-child')?.textContent === newCheese
+                        );
+                        
+                        if (targetBase) {
+                            const radio = targetBase.querySelector('input');
+                            if (radio) radio.checked = true;
+                            targetBase.classList.add('selected');
+                        }
+                        if (targetSauce) {
+                            const radio = targetSauce.querySelector('input');
+                            if (radio) radio.checked = true;
+                            targetSauce.classList.add('selected');
+                        }
+                        if (targetCheese) {
+                            const radio = targetCheese.querySelector('input');
+                            if (radio) radio.checked = true;
+                            targetCheese.classList.add('selected');
+                        }
+                        
+                        updateTotalPrice();
+                        updateDecoratorDemo();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
+    });
+    
+    function resetFactorySelection() {
+        activeFactory = null;
+        factoryStyleName = null;
+        factoryBaseName = null;
+        factorySauceName = null;
+        factoryCheeseName = null;
+        
+        document.querySelectorAll('.factory-btn').forEach(btn => btn.classList.remove('active'));
+        
+        const baseOptions = document.querySelectorAll('.ingredient-option[data-category="base"]');
+        const sauceOptions = document.querySelectorAll('.ingredient-option[data-category="sauce"]');
+        const cheeseOptions = document.querySelectorAll('.ingredient-option[data-category="cheese"]');
+        
+        baseOptions.forEach(opt => opt.classList.remove('disabled'));
+        sauceOptions.forEach(opt => opt.classList.remove('disabled'));
+        cheeseOptions.forEach(opt => opt.classList.remove('disabled'));
+        
+        document.getElementById('baseSection').classList.remove('disabled');
+        document.getElementById('sauceSection').classList.remove('disabled');
+        document.getElementById('cheeseSection').classList.remove('disabled');
+        
+        const selectedBase = document.querySelector('input[name="base"]:checked');
+        const selectedSauce = document.querySelector('input[name="sauce"]:checked');
+        const selectedCheese = document.querySelector('input[name="cheese"]:checked');
+        
+        if (selectedBase) selectedBase.checked = false;
+        if (selectedSauce) selectedSauce.checked = false;
+        if (selectedCheese) selectedCheese.checked = false;
+        
+        document.querySelectorAll('.ingredient-option.selected').forEach(opt => {
+            if (opt.dataset.category !== 'topping') {
+                opt.classList.remove('selected');
+            }
+        });
+        
+        document.getElementById('factoryPreview').style.display = 'none';
+        document.getElementById('previewName').textContent = '';
+        document.getElementById('previewDesc').textContent = '';
+        document.getElementById('previewBase').textContent = '';
+        document.getElementById('previewSauce').textContent = '';
+        document.getElementById('previewCheese').textContent = '';
+        document.getElementById('previewPrice').textContent = '';
+        document.getElementById('previewToppings').textContent = '-';
+        
+        updateTotalPrice();
+        updateDecoratorDemo();
     }
     
     document.querySelectorAll('input[name="base"], input[name="sauce"], input[name="cheese"]').forEach(input => {
         input.addEventListener('change', updateTotalPrice);
+        input.addEventListener('change', updateDecoratorDemo);
     });
     
     document.querySelectorAll('input[name="toppings"]').forEach(input => {
@@ -380,6 +809,8 @@
             }
             document.getElementById('toppingsCount').textContent = selectedToppings.size;
             updateTotalPrice();
+            updateDecoratorDemo();
+            updateFactoryPreviewWithToppings();
         });
     });
     
@@ -388,8 +819,15 @@
         if (radio && radio.checked) {
             opt.classList.add('selected');
         }
+        const checkbox = opt.querySelector('input[type="checkbox"]');
+        if (checkbox && checkbox.checked) {
+            opt.classList.add('selected');
+            selectedToppings.add(checkbox.value);
+            document.getElementById('toppingsCount').textContent = selectedToppings.size;
+        }
     });
     
     updateTotalPrice();
+    updateDecoratorDemo();
 </script>
 {% endblock %}

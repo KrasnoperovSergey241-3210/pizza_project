@@ -29,4 +29,6 @@ urlpatterns = [
     path('courier/<int:courier_id>/assign/', views.assign_courier_to_order, name='assign_courier'),
     path('reports/sales/', views.sales_report, name='sales_report'),
     path('reports/popular-pizzas/', views.popular_pizzas_report, name='popular_pizzas'),
+    path('favorites/remove/<int:pizza_id>/', views.remove_from_favorites, name='remove_from_favorites'),
+    path('admin-notifications/', views.notifications_view, name='notifications'),
 ]

@@ -10,3 +10,10 @@ pip install -r requirements.txt
 python manage.py populate_db
 ### Запуск заполнителя базы данных с предварительной очисткой предыдущих записей
 python manage.py populate_db --clear
+### Данные для входа за пользователя или администратора
+Пользователь
+E-mail: sakrasnoperov2006@gmail.com
+Пароль: test123
+Администратор
+E-mail: admin@pizzaflow.com
+Пароль: admin
