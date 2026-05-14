@@ -305,25 +305,85 @@ def update_cart_quantity(request):
 def create_order(request):
     if 'user_id' not in request.session:
         return redirect('login')
+    
     cart = request.session.get('cart', {})
     total = sum(item['price'] * item['quantity'] for item in cart.values())
+    
     if total == 0:
         messages.warning(request, 'Корзина пуста')
         return redirect('constructor')
+    
     if request.method == 'POST':
         delivery_type = request.POST.get('delivery_type')
+        
         from .order_processor import DeliveryOrderProcessor, PickupOrderProcessor
+        
         if delivery_type == 'delivery':
             processor = DeliveryOrderProcessor()
         else:
             processor = PickupOrderProcessor()
+        
         order = processor.process(request, cart, total)
+        
+        from .strategies import OrderContext, StandardPricing, DiscountPricing, LoyaltyPricing, StandardDelivery, ExpressDelivery, PickupStrategy
+        from .models import Client
+        
+        client = None
+        if 'user_id' in request.session:
+            try:
+                client = Client.objects.get(client_id=request.session['user_id'])
+            except Client.DoesNotExist:
+                pass
+        
+        total_quantity = sum(item['quantity'] for item in cart.values())
+        
+        if client and hasattr(client, 'loyalty_points') and client.loyalty_points > 100:
+            pricing_strategy = LoyaltyPricing(client.loyalty_points)
+        elif total_quantity >= 3:
+            pricing_strategy = DiscountPricing(10)
+        else:
+            pricing_strategy = StandardPricing()
+        
+        if delivery_type == 'pickup':
+            delivery_strategy = PickupStrategy()
+        else:
+            if total > 1000:
+                delivery_strategy = ExpressDelivery()
+            else:
+                delivery_strategy = StandardDelivery()
+        
+        context = OrderContext(pricing_strategy, delivery_strategy)
+        distance_km = 5
+        
+        recalculated_total = context.calculate_total(total, 0, 1, distance_km, total)
+        
+        if abs(recalculated_total - order.amount) > 0.01:
+            order.amount = recalculated_total
+            order.save()
+
         order_subject.notify(order)
         event_bus.publish('order_status_changed', {'order_id': order.order_id, 'status': order.status})
         messages.success(request, f'Заказ #{order.order_id} успешно создан')
         return redirect('my_orders')
-    delivery_fee = 200 if total < 500 else 0
-    grand_total = total + delivery_fee
+    
+    total_quantity = sum(item['quantity'] for item in cart.values())
+    
+    discount_percent = 0
+    food_total_with_discount = total
+    
+    if total_quantity >= 3:
+        from .strategies import DiscountPricing
+        discount_percent = 10
+        pricing_strategy = DiscountPricing(10)
+        food_total_with_discount = pricing_strategy.calculate(total, 0, 1)
+
+    if food_total_with_discount >= 500:
+        delivery_fee = 0
+    else:
+        delivery_fee = 200
+    
+    grand_total = food_total_with_discount + delivery_fee
+    
     cart_items = []
     for key, item in cart.items():
         cart_items.append({
@@ -333,9 +393,13 @@ def create_order(request):
             'quantity': item['quantity'],
             'total': item['price'] * item['quantity']
         })
+    
     context = {
         'cart_items': cart_items,
-        'total': total,
+        'total': total,  # исходная сумма
+        'discount_percent': discount_percent,
+        'discount_amount': total - food_total_with_discount,
+        'food_total_with_discount': food_total_with_discount,
         'delivery_fee': delivery_fee,
         'grand_total': grand_total,
         'free_delivery_threshold': 500

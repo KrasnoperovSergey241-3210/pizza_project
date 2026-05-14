@@ -28,6 +28,7 @@
     .radio-group label {
         display: block;
         margin-bottom: 10px;
+        cursor: pointer;
     }
     input[type="radio"] {
         accent-color: #d32f2f;
@@ -88,8 +89,11 @@
     .text-right {
         text-align: right;
     }
-    .margin-input {
-        margin-top: 20px;
+    .discount-row {
+        color: #4caf50;
+    }
+    .total-row {
+        border-top: 2px solid #d32f2f;
     }
 </style>
 
@@ -97,24 +101,24 @@
     <div class="col-2">
         <div class="card">
             <h1>Оформление заказа</h1>
-            <form method="POST">
+            <form method="POST" id="orderForm">
                 {% csrf_token %}
                 
                 <h3>Способ получения</h3>
                 <div class="radio-group">
                     <label>
-                        <input type="radio" name="delivery_type" value="delivery" required onchange="toggleAddress()">
+                        <input type="radio" name="delivery_type" value="delivery" required onchange="updateDeliveryFee()">
                         Доставка
                     </label>
                     <label>
-                        <input type="radio" name="delivery_type" value="pickup" required onchange="toggleAddress()">
+                        <input type="radio" name="delivery_type" value="pickup" required onchange="updateDeliveryFee()">
                         Самовывоз
                     </label>
                 </div>
                 
                 <div id="address_block" style="display: none; margin-top: 15px;">
                     <label>Адрес доставки:</label>
-                    <input type="text" name="address" placeholder="Улица, дом, квартира" class="form-control margin-input">
+                    <input type="text" name="address" placeholder="Улица, дом, квартира" class="form-control">
                 </div>
                 
                 <h3 style="margin-top: 20px;">Комментарий</h3>
@@ -131,30 +135,43 @@
     <div class="col-1">
         <div class="card">
             <h3>Ваш заказ</h3>
-            <table>
+            <table id="orderTable">
                 {% for item in cart_items %}
                 <tr>
                     <td>{{ item.name }} x {{ item.quantity }}</td>
                     <td class="text-right">{{ item.total|floatformat:2 }} ₽</td>
                 </tr>
                 {% endfor %}
+                
                 <tr style="border-top: 1px solid #ddd;">
                     <td><strong>Товары:</strong></td>
                     <td class="text-right">{{ total|floatformat:2 }} ₽</td>
                 </tr>
-                <tr>
-                    <td><strong>Доставка:</strong></td>
-                    <td class="text-right">
-                        {% if delivery_fee > 0 %}
-                            {{ delivery_fee }} ₽
-                        {% else %}
-                            Бесплатно
-                        {% endif %}
-                    </td>
+                
+                {% if discount_percent > 0 %}
+                <tr style="color: #4caf50;">
+                    <td><strong>Скидка {{ discount_percent }}%:</strong></td>
+                    <td class="text-right">- {{ discount_amount|floatformat:2 }} ₽</td>
                 </tr>
-                <tr style="border-top: 2px solid #d32f2f;">
-                    <td><strong>Итого:</strong></td>
-                    <td class="text-right"><strong style="color: #d32f2f;">{{ grand_total|floatformat:2 }} ₽</strong></td>
+                <tr>
+                    <td><strong>Сумма после скидки:</strong></td>
+                    <td class="text-right" id="foodTotal">{{ food_total_with_discount|floatformat:2 }} ₽</td>
+                </tr>
+                {% else %}
+                <tr style="display: none;">
+                    <td><strong>Сумма после скидки:</strong></td>
+                    <td class="text-right" id="foodTotal">{{ total|floatformat:2 }} ₽</td>
+                </tr>
+                {% endif %}
+                
+                <tr id="deliveryRow">
+                    <td><strong>Доставка:</strong></td>
+                    <td class="text-right" id="deliveryFee">200 ₽</td>
+                </tr>
+                
+                <tr class="total-row">
+                    <td><strong>Итого к оплате:</strong></td>
+                    <td class="text-right"><strong style="color: #d32f2f; font-size: 1.2em;" id="grandTotal">0 ₽</strong></td>
                 </tr>
             </table>
         </div>
@@ -162,20 +179,47 @@
 </div>
 
 <script>
-    function toggleAddress() {
+    // Данные из Django
+    const foodTotal = {% if discount_percent > 0 %}{{ food_total_with_discount|safe }}{% else %}{{ total|safe }}{% endif %};
+    const freeDeliveryThreshold = {{ free_delivery_threshold|default:500 }};
+    
+    function updateDeliveryFee() {
         const deliveryType = document.querySelector('input[name="delivery_type"]:checked');
         const addressBlock = document.getElementById('address_block');
-        if (deliveryType && deliveryType.value === 'delivery') {
-            addressBlock.style.display = 'block';
+        const deliveryFeeSpan = document.getElementById('deliveryFee');
+        const grandTotalSpan = document.getElementById('grandTotal');
+        
+        let deliveryFee = 0;
+        
+        if (deliveryType) {
+            if (deliveryType.value === 'pickup') {
+                // Самовывоз — бесплатно
+                deliveryFee = 0;
+                addressBlock.style.display = 'none';
+            } else {
+                // Доставка
+                addressBlock.style.display = 'block';
+                if (foodTotal >= freeDeliveryThreshold) {
+                    deliveryFee = 0;
+                } else {
+                    deliveryFee = 200;
+                }
+            }
+        }
+        
+        // Обновляем отображение
+        if (deliveryFee === 0) {
+            deliveryFeeSpan.innerHTML = 'Бесплатно';
         } else {
-            addressBlock.style.display = 'none';
+            deliveryFeeSpan.innerHTML = deliveryFee + ' ₽';
         }
+        
+        const grandTotal = foodTotal + deliveryFee;
+        grandTotalSpan.innerHTML = grandTotal.toFixed(2) + ' ₽';
     }
-    window.addEventListener('DOMContentLoaded', () => {
-        const checked = document.querySelector('input[name="delivery_type"]:checked');
-        if (checked && checked.value === 'delivery') {
-            document.getElementById('address_block').style.display = 'block';
-        }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        updateDeliveryFee();
     });
 </script>
 {% endblock %}
